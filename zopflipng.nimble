@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "bung87"
-description   = "A new awesome nimble package"
+description   = "zopflipng-like png optimization"
 license       = "MIT"
 srcDir        = "src"
 
