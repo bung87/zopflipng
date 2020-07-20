@@ -1,0 +1,12 @@
+# Ignore all
+*
+# Unignore all with extensions
+!*.*
+# Unignore all dirs
+!*/
+nimcache/
+nimblecache/
+htmldocs/
+*.out
+*.exe
+logo_out.png

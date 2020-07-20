@@ -1,0 +1,165 @@
+import nimPNG
+import nimPNG / [filters,nimz]
+import streams
+import sequtils
+
+# const WindowSizeMax = 32768
+const WindowSizeTry = 8192
+
+template PNGFatal(msg: string): untyped =
+  newException(PNGError, msg)
+
+proc makePNGEncoder*(filterStrategy:PNGFilterStrategy,modeIn:PNGColorMode,filters: seq[PNGFilter]): PNGEncoder =
+  var s: PNGEncoder
+  s = new(PNGEncoder)
+  s.filterPaletteZero = true
+  s.filterStrategy = filterStrategy
+  s.autoConvert = true
+  s.modeIn = modeIn
+  s.modeOut = newColorMode()
+  s.forcePalette = false
+  if filterStrategy == LFS_PREDEFINED:
+    # Don't forget that filter_palette_zero must be set to false to ensure this is also used on palette or low bitdepth images.
+    s.predefinedFilters = filters
+    s.filterPaletteZero = false
+  else:
+    s.predefinedFilters = @[]
+  s.addID = false
+  s.textCompression = true
+  s.interlaceMethod = IM_NONE
+  s.backgroundDefined = false
+  s.backgroundR = 0
+  s.backgroundG = 0
+  s.backgroundB = 0
+  s.physDefined = false
+  s.physX = 0
+  s.physY = 0
+  s.physUnit = 0
+  s.timeDefined = false
+  s.textList = @[]
+  s.itextList = @[]
+  s.unknown = @[]
+  s.numPlays = 0
+  result = s
+
+
+const ChunksNeedWrite = [IHDR,IDAT,PLTE,tRNS,IEND]
+
+proc nzInit(windowSize: int): nzStream =
+  # const DEFAULT_WINDOWSIZE = 2048
+
+  result = nzStream(
+    #compress with dynamic huffman tree
+    #(not in the mathematical sense, just not the predefined one)
+    btype: 2,
+    use_lz77: true,
+    windowsize: windowSize,
+    minmatch: 3,
+    nicematch: 128,
+    lazymatching: true,
+    ignoreAdler32: false)
+
+proc nzDeflateInit*(input: string,winSize: int): nzStream =
+  var nz = nzInit(winSize)
+  nz.data = input
+  nz.bits.data = ""
+  nz.bits.bitpointer = 0
+  nz.mode = nzsDeflate
+  result = nz
+
+proc writeChunk(chunk: PNGICCProfile, png: PNG, winSize: int): bool =
+  #estimate chunk.profileName.len + 2
+  chunk.writeString chunk.profileName
+  chunk.writeByte 0 #null separator
+  chunk.writeByte 0 #compression proc(0: deflate)
+  var nz = nzDeflateInit(chunk.profile)
+  chunk.writeString zlib_compress(nz)
+  result = true
+
+proc writeChunk(chunk: PNGChunk, png: PNG, winSize: int): bool =
+  case chunk.chunkType
+  of IHDR: result = writeChunk(PNGHeader(chunk), png)
+  of PLTE: result = writeChunk(PNGPalette(chunk), png)
+  of IDAT: result = writeChunk(PNGData(chunk), png, winSize)
+  of tRNS: result = writeChunk(PNGTrans(chunk), png)
+  of bKGD: result = writeChunk(PNGBackground(chunk), png)
+  of tIME: result = writeChunk(PNGTime(chunk), png)
+  of pHYs: result = writeChunk(PNGPhys(chunk), png)
+  of tEXt: result = writeChunk(PNGTExt(chunk), png)
+  of zTXt: result = writeChunk(PNGZtxt(chunk), png)
+  of iTXt: result = writeChunk(PNGItxt(chunk), png)
+  of gAMA: result = writeChunk(PNGGamma(chunk), png)
+  of cHRM: result = writeChunk(PNGChroma(chunk), png)
+  of iCCP: result = writeChunk(PNGICCProfile(chunk), png,winSize)
+  of sRGB: result = writeChunk(PNGStandarRGB(chunk), png)
+  of sPLT: result = writeChunk(PNGSPalette(chunk), png)
+  of hIST: result = writeChunk(PNGHist(chunk), png)
+  of sBIT: result = writeChunk(PNGSbit(chunk), png)
+  of acTL: result = writeChunk(APNGAnimationControl(chunk), png)
+  of fcTL: result = writeChunk(APNGFrameControl(chunk), png)
+  of fdAT: result = writeChunk(APNGFrameData(chunk), png)
+  else: result = true
+
+
+proc writeChunk(chunk: PNGData, png: PNG, winSize: int): bool =
+  var nz = nzDeflateInit(chunk.idat,winSize)
+  chunk.data = zlib_compress(nz)
+  result = true
+
+proc writeNeededChunks*[T](png: PNG[T], s: Stream) =
+  s.write PNGSignature
+  for chunk in png.chunks:
+    if ChunksNeedWrite.find(chunk.chunkType) == -1:
+      continue
+    if not chunk.validateChunk(png): raise PNGFatal("combine chunk validation error " & $chunk.chunkType)
+    if not chunk.writeChunk(png, WindowSizeTry): raise PNGFatal("combine chunk write error " & $chunk.chunkType)
+    chunk.length = chunk.data.len
+    chunk.crc = crc32(crc32(0, $chunk.chunkType), chunk.data)
+
+    s.writeInt32BE chunk.length
+    s.writeInt32BE int(chunk.chunkType)
+    s.write chunk.data
+    s.writeInt32BE cast[int](chunk.crc)
+
+proc optimizePNG*(src,dest:string) =
+  let f = open("logo.png", fmRead)
+  let s = newFileStream(f)
+  let png = decodePNG(s)
+  let info = png.getInfo()
+  let mfilters = png.getFilterTypes()
+  var aSize = getFileSize(f)
+  f.setFilePos(0)
+  var data = f.readAll
+  f.close
+  debugEcho info.height
+  debugEcho aSize
+  for filterStrategy in PNGFilterStrategy:
+    if LFS_BRUTE_FORCE == filterStrategy or LFS_ZERO == filterStrategy: # Don't try brute force 
+      continue
+    var ss = newStringStream()
+    let settings = makePNGEncoder(filterStrategy,info.mode,mfilters)
+    var png = encodePNG(png.pixels, settings.modeOut.colorType,settings.modeOut.bitDepth,info.width,info.height,settings=settings)
+    png.writeNeededChunks(ss)
+    if ss.data.len < aSize:
+      aSize = ss.data.len
+      data = ss.data
+    debugEcho filterStrategy,ss.data.len
+
+  for f in PNGFilter:
+    var ss = newStringStream()
+    let mfilters = newSeqWith(info.height, f)
+    let settings = makePNGEncoder(LFS_PREDEFINED,info.mode,mfilters)
+    var png = encodePNG(png.pixels, settings.modeOut.colorType,settings.modeOut.bitDepth,info.width,info.height,settings=settings)
+    png.writeNeededChunks(ss)
+    if ss.data.len < aSize:
+      aSize = ss.data.len
+      data = ss.data
+    debugEcho f,ss.data.len
+ 
+  writeFile("logo_out.png",data)
+
+when isMainModule:
+  let src = "logo.png"
+  let dest = "logo_out.png"
+  optimizePNG(src,dest)
+ 
