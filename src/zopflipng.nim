@@ -52,7 +52,7 @@ proc nzInit(windowSize: int): nzStream =
     use_lz77: true,
     windowsize: windowSize,
     minmatch: 3,
-    nicematch: 258, # default 128
+    nicematch: 258, # default 128, max 258 for getting smaller size
     lazymatching: true,
     ignoreAdler32: false)
 
