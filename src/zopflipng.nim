@@ -8,14 +8,14 @@ const WindowSizeTry = 8192
 template PNGFatal(msg: string): untyped =
   newException(PNGError, msg)
 
-proc makePNGEncoder*(filterStrategy:PNGFilterStrategy,modeIn:PNGColorMode,predefinedFilters: seq[PNGFilter]): PNGEncoder =
+proc makePNGEncoder*(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; predefinedFilters: seq[PNGFilter] ;autoConvert = true; modeOut:PNGColorMode = newColorMode()): PNGEncoder =
   var s: PNGEncoder
   s = new(PNGEncoder)
   s.filterPaletteZero = true
   s.filterStrategy = filterStrategy
-  s.autoConvert = true
+  s.autoConvert = autoConvert
   s.modeIn = modeIn
-  s.modeOut = newColorMode()
+  s.modeOut = modeOut
   s.forcePalette = false
   if filterStrategy == LFS_PREDEFINED:
     # Don't forget that filter_palette_zero must be set to false to ensure this is also used on palette or low bitdepth images.
@@ -134,12 +134,20 @@ proc optimizePNG*(src, dest: string) =
   var ss:StringStream
   var settings:PNGEncoder
   var pngTemp:PNG[string]
+  var choosedPNGColorMode:PNGColorMode
+  var choosen = false
   for filterStrategy in PNGFilterStrategy:
     if LFS_BRUTE_FORCE == filterStrategy or LFS_ZERO == filterStrategy: # Don't try brute force 
       continue
     ss = newStringStream()
-    settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
+    if choosen != false:
+      settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters, false, choosedPNGColorMode)
+    else:
+      settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
     pngTemp = encodePNG(png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,info.height, settings=settings)
+    if choosen == false:
+      choosedPNGColorMode = settings.modeOut
+      choosen = true
     pngTemp.writeNeededChunks(ss)
     if ss.data.len < aSize:
       aSize = ss.data.len
@@ -150,15 +158,19 @@ proc optimizePNG*(src, dest: string) =
   for f in PNGFilter:
     ss = newStringStream()
     filters = newSeqWith(info.height, f)
-    settings = makePNGEncoder(LFS_PREDEFINED, info.mode, filters)
+    if choosen != false:
+      settings = makePNGEncoder(LFS_PREDEFINED, info.mode, filters, false, choosedPNGColorMode)
+    else:
+      settings = makePNGEncoder(LFS_PREDEFINED, info.mode, filters)
     pngTemp = encodePNG(png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,info.height, settings=settings)
+    if choosen == false:
+      choosedPNGColorMode = settings.modeOut
+      choosen = true
     pngTemp.writeNeededChunks(ss)
     if ss.data.len < aSize:
       aSize = ss.data.len
       data.shallowCopy ss.data
-      
     debugEcho f,ss.data.len
- 
   writeFile(dest, data)
 
 when isMainModule:
