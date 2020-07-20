@@ -1,5 +1,4 @@
-import nimPNG
-import nimPNG / [filters,nimz]
+include nimPNG
 import streams
 import sequtils
 
@@ -9,7 +8,7 @@ const WindowSizeTry = 8192
 template PNGFatal(msg: string): untyped =
   newException(PNGError, msg)
 
-proc makePNGEncoder*(filterStrategy:PNGFilterStrategy,modeIn:PNGColorMode,filters: seq[PNGFilter]): PNGEncoder =
+proc makePNGEncoder*(filterStrategy:PNGFilterStrategy,modeIn:PNGColorMode,predefinedFilters: seq[PNGFilter]): PNGEncoder =
   var s: PNGEncoder
   s = new(PNGEncoder)
   s.filterPaletteZero = true
@@ -20,7 +19,7 @@ proc makePNGEncoder*(filterStrategy:PNGFilterStrategy,modeIn:PNGColorMode,filter
   s.forcePalette = false
   if filterStrategy == LFS_PREDEFINED:
     # Don't forget that filter_palette_zero must be set to false to ensure this is also used on palette or low bitdepth images.
-    s.predefinedFilters = filters
+    s.predefinedFilters = predefinedFilters
     s.filterPaletteZero = false
   else:
     s.predefinedFilters = @[]
@@ -55,7 +54,7 @@ proc nzInit(windowSize: int): nzStream =
     use_lz77: true,
     windowsize: windowSize,
     minmatch: 3,
-    nicematch: 128,
+    nicematch: 258, # default 128
     lazymatching: true,
     ignoreAdler32: false)
 
@@ -90,7 +89,7 @@ proc writeChunk(chunk: PNGChunk, png: PNG, winSize: int): bool =
   of iTXt: result = writeChunk(PNGItxt(chunk), png)
   of gAMA: result = writeChunk(PNGGamma(chunk), png)
   of cHRM: result = writeChunk(PNGChroma(chunk), png)
-  of iCCP: result = writeChunk(PNGICCProfile(chunk), png,winSize)
+  of iCCP: result = writeChunk(PNGICCProfile(chunk), png, winSize)
   of sRGB: result = writeChunk(PNGStandarRGB(chunk), png)
   of sPLT: result = writeChunk(PNGSPalette(chunk), png)
   of hIST: result = writeChunk(PNGHist(chunk), png)
@@ -121,42 +120,46 @@ proc writeNeededChunks*[T](png: PNG[T], s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
-proc optimizePNG*(src,dest:string) =
-  let f = open("logo.png", fmRead)
-  let s = newFileStream(f)
-  let png = decodePNG(s)
-  let info = png.getInfo()
-  let mfilters = png.getFilterTypes()
-  var aSize = getFileSize(f)
-  f.setFilePos(0)
+proc optimizePNG*(src, dest: string) =
+  let f = open(src, fmRead)
   var data = f.readAll
+  var aSize = getFileSize(f)
   f.close
+  let png = decodePNG(newStringStream(data))
+  let info = png.getInfo()
+  let predefinedFilters = png.getFilterTypes()
+  
   debugEcho info.height
   debugEcho aSize
+  var ss:StringStream
+  var settings:PNGEncoder
+  var pngTemp:PNG[string]
   for filterStrategy in PNGFilterStrategy:
     if LFS_BRUTE_FORCE == filterStrategy or LFS_ZERO == filterStrategy: # Don't try brute force 
       continue
-    var ss = newStringStream()
-    let settings = makePNGEncoder(filterStrategy,info.mode,mfilters)
-    var png = encodePNG(png.pixels, settings.modeOut.colorType,settings.modeOut.bitDepth,info.width,info.height,settings=settings)
-    png.writeNeededChunks(ss)
+    ss = newStringStream()
+    settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
+    pngTemp = encodePNG(png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,info.height, settings=settings)
+    pngTemp.writeNeededChunks(ss)
     if ss.data.len < aSize:
       aSize = ss.data.len
-      data = ss.data
+      data.shallowCopy ss.data
     debugEcho filterStrategy,ss.data.len
 
+  var filters:seq[PNGFilter]
   for f in PNGFilter:
-    var ss = newStringStream()
-    let mfilters = newSeqWith(info.height, f)
-    let settings = makePNGEncoder(LFS_PREDEFINED,info.mode,mfilters)
-    var png = encodePNG(png.pixels, settings.modeOut.colorType,settings.modeOut.bitDepth,info.width,info.height,settings=settings)
-    png.writeNeededChunks(ss)
+    ss = newStringStream()
+    filters = newSeqWith(info.height, f)
+    settings = makePNGEncoder(LFS_PREDEFINED, info.mode, filters)
+    pngTemp = encodePNG(png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,info.height, settings=settings)
+    pngTemp.writeNeededChunks(ss)
     if ss.data.len < aSize:
       aSize = ss.data.len
-      data = ss.data
+      data.shallowCopy ss.data
+      
     debugEcho f,ss.data.len
  
-  writeFile("logo_out.png",data)
+  writeFile(dest, data)
 
 when isMainModule:
   let src = "logo.png"
