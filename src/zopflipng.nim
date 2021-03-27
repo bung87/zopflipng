@@ -8,8 +8,7 @@ const WindowSizeTry = 8192
 
 proc makePNGEncoder*(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; predefinedFilters: seq[PNGFilter];
     autoConvert = true; modeOut: PNGColorMode = newColorMode()): PNGEncoder =
-  var s: PNGEncoder
-  s = new(PNGEncoder)
+  var s = new PNGEncoder
   s.filterPaletteZero = true
   s.filterStrategy = filterStrategy
   s.autoConvert = autoConvert
@@ -25,19 +24,19 @@ proc makePNGEncoder*(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; pr
   s.addID = false
   s.textCompression = true
   s.interlaceMethod = IM_NONE
-  s.backgroundDefined = false
-  s.backgroundR = 0
-  s.backgroundG = 0
-  s.backgroundB = 0
-  s.physDefined = false
-  s.physX = 0
-  s.physY = 0
-  s.physUnit = 0
-  s.timeDefined = false
-  s.textList = @[]
-  s.itextList = @[]
-  s.unknown = @[]
-  s.numPlays = 0
+  # s.backgroundDefined = false
+  # s.backgroundR = 0
+  # s.backgroundG = 0
+  # s.backgroundB = 0
+  # s.physDefined = false
+  # s.physX = 0
+  # s.physY = 0
+  # s.physUnit = 0
+  # s.timeDefined = false
+  # s.textList = @[]
+  # s.itextList = @[]
+  # s.unknown = @[]
+  # s.numPlays = 0
   result = s
 
 
@@ -60,8 +59,8 @@ proc nzInit(windowSize: int): nzStream =
 proc nzDeflateInit*(input: string; winSize: int): nzStream =
   var nz = nzInit(winSize)
   nz.data = input
-  nz.bits.data = ""
-  nz.bits.bitpointer = 0
+  # nz.bits.data = ""
+  # nz.bits.bitpointer = 0
   nz.mode = nzsDeflate
   result = nz
 
@@ -119,7 +118,7 @@ proc writeNeededChunks*[T](png: PNG[T]; s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
-proc optimizePNGData*(bytes: seq[byte], dest:string) =
+proc optimizePNGData*(bytes: seq[byte]; dest: string) =
   var data = cast[string](bytes)
   let png = decodePNG(newStringStream(data))
   let info = png.getInfo()
@@ -140,7 +139,7 @@ proc optimizePNGData*(bytes: seq[byte], dest:string) =
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters, false, choosedPNGColorMode)
     else:
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
-    pngTemp = encodePNG(png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width, info.height,
+    pngTemp = encodePNG[string](png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width, info.height,
         settings = settings)
     if choosen == false:
       choosedPNGColorMode = settings.modeOut
@@ -175,7 +174,7 @@ proc optimizePNG*(src, dest: string) =
   let f = open(src, fmRead)
   var data = f.readAll
   f.close
-  optimizePNGData(cast[seq[byte]](data),dest)
+  optimizePNGData(cast[seq[byte]](data), dest)
 
 when isMainModule:
   let src = "logo.png"

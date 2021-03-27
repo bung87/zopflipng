@@ -5,6 +5,7 @@ author        = "bung87"
 description   = "zopflipng-like png optimization"
 license       = "MIT"
 srcDir        = "src"
+skipDirs      = @["tests"]
 
 
 
