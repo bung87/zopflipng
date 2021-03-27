@@ -1,4 +1,5 @@
 include nimPNG
+include nimPNG/nimz
 import streams
 import sequtils
 
@@ -127,8 +128,8 @@ proc optimizePNG*(src, dest: string) =
   let info = png.getInfo()
   let predefinedFilters = png.getFilterTypes()
 
-  debugEcho info.height
-  debugEcho aSize
+  # debugEcho info.height
+  # debugEcho aSize
   var ss: StringStream
   var settings: PNGEncoder
   var pngTemp: PNG[string]
@@ -151,7 +152,7 @@ proc optimizePNG*(src, dest: string) =
     if ss.data.len < aSize:
       aSize = ss.data.len
       data.shallowCopy ss.data
-    debugEcho filterStrategy, ss.data.len
+    # debugEcho filterStrategy, ss.data.len
 
   var filters: seq[PNGFilter]
   for f in PNGFilter:
@@ -170,7 +171,7 @@ proc optimizePNG*(src, dest: string) =
     if ss.data.len < aSize:
       aSize = ss.data.len
       data.shallowCopy ss.data
-    debugEcho f, ss.data.len
+    # debugEcho f, ss.data.len
   writeFile(dest, data)
 
 when isMainModule:
