@@ -8,4 +8,5 @@ zopflipng-like png optimization
 import zopflipng
 
 optimizePNG*(src, dest: string)
+optimizePNGData*(bytes: seq[byte], dest:string)
 ```

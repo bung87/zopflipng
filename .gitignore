@@ -1,12 +1,19 @@
-# Ignore all
+
 *
-# Unignore all with extensions
+!**/
 !*.*
-# Unignore all dirs
+.DS_Store
+!.gitattributes
+!.gitignore
+!readme.md
+!.gitkeep
+!*.nim
+!*.nims
+!*.nimble
+!*.h
+!*.css
+!*.html
 !*/
-nimcache/
-nimblecache/
-htmldocs/
-*.out
-*.exe
+src/htmldocs
+build/
 logo_out.png

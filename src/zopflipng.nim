@@ -119,15 +119,12 @@ proc writeNeededChunks*[T](png: PNG[T]; s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
-proc optimizePNG*(src, dest: string) =
-  let f = open(src, fmRead)
-  var data = f.readAll
-  var aSize = getFileSize(f)
-  f.close
+proc optimizePNGData*(bytes: seq[byte], dest:string) =
+  var data = cast[string](bytes)
   let png = decodePNG(newStringStream(data))
   let info = png.getInfo()
   let predefinedFilters = png.getFilterTypes()
-
+  var aSize = bytes.len
   # debugEcho info.height
   # debugEcho aSize
   var ss: StringStream
@@ -173,6 +170,12 @@ proc optimizePNG*(src, dest: string) =
       data.shallowCopy ss.data
     # debugEcho f, ss.data.len
   writeFile(dest, data)
+
+proc optimizePNG*(src, dest: string) =
+  let f = open(src, fmRead)
+  var data = f.readAll
+  f.close
+  optimizePNGData(cast[seq[byte]](data),dest)
 
 when isMainModule:
   let src = "logo.png"
