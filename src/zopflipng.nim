@@ -139,8 +139,8 @@ proc optimizePNGData*(bytes: seq[byte]; dest: string) =
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters, false, choosedPNGColorMode)
     else:
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
-    pngTemp = encodePNG[string](png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width, info.height,
-        settings = settings)
+    pngTemp = encodePNG[string](png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,
+        info.height, settings = settings)
     if choosen == false:
       choosedPNGColorMode = settings.modeOut
       choosen = true
