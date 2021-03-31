@@ -42,7 +42,7 @@ proc makePNGEncoder*(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; pr
 
 const ChunksNeedWrite = [IHDR, IDAT, PLTE, tRNS, IEND]
 
-proc nzInit(windowSize: int): nzStream =
+proc nzInitMy(windowSize: int): nzStream =
   # const DEFAULT_WINDOWSIZE = 2048
 
   result = nzStream(
@@ -57,7 +57,7 @@ proc nzInit(windowSize: int): nzStream =
     ignoreAdler32: false)
 
 proc nzDeflateInit*(input: string; winSize: int): nzStream =
-  var nz = nzInit(winSize)
+  var nz = nzInitMy(winSize)
   nz.data = input
   # nz.bits.data = ""
   # nz.bits.bitpointer = 0
