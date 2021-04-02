@@ -74,7 +74,7 @@ proc writeChunk(chunk: PNGICCProfile; png: PNG; winSize: int): bool =
   result = true
 
 proc writeChunk(chunk: PNGData; png: PNG; winSize: int): bool =
-  var nz = nzDeflateInitMy(chunk.idat,winSIze)
+  var nz = nzDeflateInitMy(chunk.idat, winSIze)
   chunk.data = zlib_compress(nz)
   result = true
 
@@ -117,11 +117,11 @@ proc writeNeededChunks[T](png: PNG[T]; s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
-proc optimizePNG*[T](png:PNG[T]; bsize:int; dest:string) = 
+proc optimizePNG*[T](png: PNG[T]; bsize: int; dest: string) =
   let info = png.getInfo()
   let predefinedFilters = png.getFilterTypes()
   var aSize = bsize
-  var data:string
+  var data: string
   # debugEcho info.height
   # debugEcho aSize
   var ss: StringStream
@@ -171,7 +171,7 @@ proc optimizePNG*[T](png:PNG[T]; bsize:int; dest:string) =
 proc optimizePNGData*(bytes: seq[byte]; dest: string) =
   var data = cast[string](bytes)
   let png = decodePNG(newStringStream(data))
-  optimizePNG[string](png,data.len,dest)
+  optimizePNG[string](png, data.len, dest)
 
 proc optimizePNG*(src, dest: string) =
   let f = open(src, fmRead)
