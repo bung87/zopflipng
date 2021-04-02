@@ -6,7 +6,7 @@ import sequtils
 # const WindowSizeMax = 32768
 const WindowSizeTry = 8192
 
-proc makePNGEncoder*(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; predefinedFilters: seq[PNGFilter];
+proc makePNGEncoder(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; predefinedFilters: seq[PNGFilter];
     autoConvert = true; modeOut: PNGColorMode = newColorMode()): PNGEncoder =
   var s = new PNGEncoder
   s.filterPaletteZero = true
@@ -56,11 +56,11 @@ proc nzInitMy(windowSize: int): nzStream =
     lazymatching: true,
     ignoreAdler32: false)
 
-proc nzDeflateInit*(input: string; winSize: int): nzStream =
+proc nzDeflateInitMy(input: string; winSize: int): nzStream =
   var nz = nzInitMy(winSize)
   nz.data = input
-  # nz.bits.data = ""
-  # nz.bits.bitpointer = 0
+  nz.bits.data = ""
+  nz.bits.bitpointer = 0
   nz.mode = nzsDeflate
   result = nz
 
@@ -69,8 +69,13 @@ proc writeChunk(chunk: PNGICCProfile; png: PNG; winSize: int): bool =
   chunk.writeString chunk.profileName
   chunk.writeByte 0 #null separator
   chunk.writeByte 0 #compression proc(0: deflate)
-  var nz = nzDeflateInit(chunk.profile)
+  var nz = nimz.nzDeflateInit(chunk.profile)
   chunk.writeString zlib_compress(nz)
+  result = true
+
+proc writeChunk(chunk: PNGData; png: PNG; winSize: int): bool =
+  var nz = nzDeflateInitMy(chunk.idat,winSIze)
+  chunk.data = zlib_compress(nz)
   result = true
 
 proc writeChunk(chunk: PNGChunk; png: PNG; winSize: int): bool =
@@ -97,13 +102,7 @@ proc writeChunk(chunk: PNGChunk; png: PNG; winSize: int): bool =
   of fdAT: result = writeChunk(APNGFrameData(chunk), png)
   else: result = true
 
-
-proc writeChunk(chunk: PNGData; png: PNG; winSize: int): bool =
-  var nz = nzDeflateInit(chunk.idat, winSize)
-  chunk.data = zlib_compress(nz)
-  result = true
-
-proc writeNeededChunks*[T](png: PNG[T]; s: Stream) =
+proc writeNeededChunks[T](png: PNG[T]; s: Stream) =
   s.write PNGSignature
   for chunk in png.chunks:
     if ChunksNeedWrite.find(chunk.chunkType) == -1:
@@ -118,17 +117,16 @@ proc writeNeededChunks*[T](png: PNG[T]; s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
-proc optimizePNGData*(bytes: seq[byte]; dest: string) =
-  var data = cast[string](bytes)
-  let png = decodePNG(newStringStream(data))
+proc optimizePNG*[T](png:PNG[T]; bsize:int; dest:string) = 
   let info = png.getInfo()
   let predefinedFilters = png.getFilterTypes()
-  var aSize = bytes.len
+  var aSize = bsize
+  var data:string
   # debugEcho info.height
   # debugEcho aSize
   var ss: StringStream
   var settings: PNGEncoder
-  var pngTemp: PNG[string]
+  var pngTemp: PNG[T]
   var choosedPNGColorMode: PNGColorMode
   var choosen = false
   for filterStrategy in PNGFilterStrategy:
@@ -139,7 +137,7 @@ proc optimizePNGData*(bytes: seq[byte]; dest: string) =
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters, false, choosedPNGColorMode)
     else:
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
-    pngTemp = encodePNG[string](png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,
+    pngTemp = encodePNG[T](png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,
         info.height, settings = settings)
     if choosen == false:
       choosedPNGColorMode = settings.modeOut
@@ -169,6 +167,11 @@ proc optimizePNGData*(bytes: seq[byte]; dest: string) =
       data.shallowCopy ss.data
     # debugEcho f, ss.data.len
   writeFile(dest, data)
+
+proc optimizePNGData*(bytes: seq[byte]; dest: string) =
+  var data = cast[string](bytes)
+  let png = decodePNG(newStringStream(data))
+  optimizePNG[string](png,data.len,dest)
 
 proc optimizePNG*(src, dest: string) =
   let f = open(src, fmRead)
