@@ -1,5 +1,5 @@
-include nimPNG
-include nimPNG/nimz
+include zopflipng/nimPNG
+# include privatepkg/nimPNG/[nimz]
 import streams
 import sequtils
 
@@ -42,27 +42,6 @@ proc makePNGEncoder(filterStrategy: PNGFilterStrategy; modeIn: PNGColorMode; pre
 
 const ChunksNeedWrite = [IHDR, IDAT, PLTE, tRNS, IEND]
 
-proc nzInitMy(windowSize: int): nzStream =
-  # const DEFAULT_WINDOWSIZE = 2048
-
-  result = nzStream(
-    #compress with dynamic huffman tree
-      #(not in the mathematical sense, just not the predefined one)
-    btype: 2,
-    use_lz77: true,
-    windowsize: windowSize,
-    minmatch: 3,
-    nicematch: 258, # default 128, max 258 for getting smaller size
-    lazymatching: true,
-    ignoreAdler32: false)
-
-proc nzDeflateInitMy(input: string; winSize: int): nzStream =
-  var nz = nzInitMy(winSize)
-  nz.data = input
-  nz.bits.data = ""
-  nz.bits.bitpointer = 0
-  nz.mode = nzsDeflate
-  result = nz
 
 proc writeChunk(chunk: PNGICCProfile; png: PNG; winSize: int): bool =
   #estimate chunk.profileName.len + 2
@@ -102,7 +81,7 @@ proc writeChunk(chunk: PNGChunk; png: PNG; winSize: int): bool =
   of fdAT: result = writeChunk(APNGFrameData(chunk), png)
   else: result = true
 
-proc writeNeededChunks[T](png: PNG[T]; s: Stream) =
+proc writeNeededChunks*[T](png: PNG[T]; s: Stream) =
   s.write PNGSignature
   for chunk in png.chunks:
     if ChunksNeedWrite.find(chunk.chunkType) == -1:
