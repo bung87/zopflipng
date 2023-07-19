@@ -69,7 +69,7 @@ proc writeChunk(chunk: PNGICCProfile; png: PNG; winSize: int): bool =
   chunk.writeString chunk.profileName
   chunk.writeByte 0 #null separator
   chunk.writeByte 0 #compression proc(0: deflate)
-  var nz = nimz.nzDeflateInit(chunk.profile)
+  var nz = nzDeflateInit(chunk.profile)
   chunk.writeString zlib_compress(nz)
   result = true
 
