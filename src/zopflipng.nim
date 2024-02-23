@@ -48,7 +48,7 @@ proc nzInitMy(windowSize: int): nzStream =
   result = nzStream(
     #compress with dynamic huffman tree
       #(not in the mathematical sense, just not the predefined one)
-    btype: 2,
+    btype: nzDynamic,
     use_lz77: true,
     windowsize: windowSize,
     minmatch: 3,
@@ -145,7 +145,10 @@ proc optimizePNG*[T](png: PNG[T]; bsize: int; dest: string) =
     pngTemp.writeNeededChunks(ss)
     if ss.data.len < aSize:
       aSize = ss.data.len
-      data.shallowCopy ss.data
+      when declared(shallowCopy):
+        data.shallowCopy ss.data
+      else:
+        data = ss.data
     # debugEcho filterStrategy, ss.data.len
 
   var filters: seq[PNGFilter]
@@ -164,7 +167,10 @@ proc optimizePNG*[T](png: PNG[T]; bsize: int; dest: string) =
     pngTemp.writeNeededChunks(ss)
     if ss.data.len < aSize:
       aSize = ss.data.len
-      data.shallowCopy ss.data
+      when declared(shallowCopy):
+        data.shallowCopy ss.data
+      else:
+        data = ss.data
     # debugEcho f, ss.data.len
   writeFile(dest, data)
 
