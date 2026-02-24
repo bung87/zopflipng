@@ -120,53 +120,58 @@ proc writeNeededChunks[T](png: PNG[T]; s: Stream) =
 proc optimizePNG*[T](png: PNG[T]; bsize: int; dest: string) =
   let info = png.getInfo()
   let predefinedFilters = png.getFilterTypes()
-  var aSize = bsize
-  var data: string
-  # debugEcho info.height
-  # debugEcho aSize
+  var bestData: string
   var ss: StringStream
   var settings: PNGEncoder
   var pngTemp: PNG[T]
   var choosedPNGColorMode: PNGColorMode
   var choosen = false
+  
   for filterStrategy in PNGFilterStrategy:
-    if LFS_BRUTE_FORCE == filterStrategy or LFS_ZERO == filterStrategy: # Don't try brute force
+    if LFS_BRUTE_FORCE == filterStrategy or LFS_ZERO == filterStrategy:
       continue
     ss = newStringStream()
-    if choosen != false:
+    if choosen:
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters, false, choosedPNGColorMode)
     else:
       settings = makePNGEncoder(filterStrategy, info.mode, predefinedFilters)
     pngTemp = encodePNG[T](png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width,
         info.height, settings = settings)
-    if choosen == false:
+    if not choosen:
       choosedPNGColorMode = settings.modeOut
       choosen = true
     pngTemp.writeNeededChunks(ss)
-    if ss.data.len < aSize:
-      aSize = ss.data.len
-      data = ss.data
-    # debugEcho filterStrategy, ss.data.len
+    # Keep the smallest result
+    if bestData.len == 0 or ss.data.len < bestData.len:
+      when declared(shallowCopy):
+        bestData.shallowCopy ss.data
+      else:
+        bestData = ss.data
 
-  var filters: seq[PNGFilter]
   for f in PNGFilter:
     ss = newStringStream()
-    filters = newSeqWith(info.height, f)
-    if choosen != false:
+    let filters = newSeqWith(info.height, f)
+    if choosen:
       settings = makePNGEncoder(LFS_PREDEFINED, info.mode, filters, false, choosedPNGColorMode)
     else:
       settings = makePNGEncoder(LFS_PREDEFINED, info.mode, filters)
     pngTemp = encodePNG(png.pixels, settings.modeOut.colorType, settings.modeOut.bitDepth, info.width, info.height,
         settings = settings)
-    if choosen == false:
+    if not choosen:
       choosedPNGColorMode = settings.modeOut
       choosen = true
     pngTemp.writeNeededChunks(ss)
-    if ss.data.len < aSize:
-      aSize = ss.data.len
-      data = ss.data
-    # debugEcho f, ss.data.len
-  writeFile(dest, data)
+    # Keep the smallest result
+    if bestData.len == 0 or ss.data.len < bestData.len:
+      when declared(shallowCopy):
+        bestData.shallowCopy ss.data
+      else:
+        bestData = ss.data
+
+  if bestData.len == 0:
+    raise newException(IOError, "No valid PNG output generated")
+  
+  writeFile(dest, bestData)
 
 proc optimizePNGData*(bytes: seq[byte]; dest: string) =
   var data = cast[string](bytes)
