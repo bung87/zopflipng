@@ -1,10 +1,6 @@
 # Package
 
-<<<<<<< HEAD
 version       = "0.1.9"
-=======
-version       = "0.1.8"
->>>>>>> be28f51 (v0.1.8)
 author        = "bung87"
 description   = "zopflipng-like png optimization"
 license       = "MIT"
