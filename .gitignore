@@ -17,3 +17,6 @@
 src/htmldocs
 build/
 logo_out.png
+nimble.develop
+nimble.paths
+nimbledeps
